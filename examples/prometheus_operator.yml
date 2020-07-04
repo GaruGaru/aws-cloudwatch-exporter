@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: firehose-exporter
+  namespace: exporters
+spec:
+  replicas: 1
+
+  strategy:
+    type: Recreate
+
+  selector:
+    matchLabels:
+      app: aws-firehose-exporter
+      tier: exporter
+
+  template:
+    metadata:
+      labels:
+        app: aws-firehose-exporter
+        tier: exporter
+
+    spec:
+      containers:
+
+        - name: aws-cloudwatch-exporter
+          image: garugaru/aws-cloudwatch-exporter
+          args:
+            - -refresh=300 -cloudwatch-namespace=AWS/Firehose
+          ports:
+            - containerPort: 9999
+              name: exporter-port
+
+          envFrom:
+            - secretRef:
+                name: aws-cloudwatch-exporter-aws-credentials
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 9999
+            initialDelaySeconds: 10
+            failureThreshold: 5
+            successThreshold: 1
+            periodSeconds: 5
+
+          resources:
+            requests:
+              memory: "10Mi"
+              cpu: "10m"
+            limits:
+              memory: "100Mi"
+              cpu: "200m"
+
+---
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sqs-monitor
+  namespace: exporters
+
+  labels:
+    release: prometheus
+    app: aws-firehose-exporter
+    tier: exporter
+
+spec:
+  namespaceSelector:
+    matchNames:
+      - exporters
+  selector:
+    matchLabels:
+      app: aws-firehose-exporter
+      tier: exporter
+  endpoints:
+    - port: exporter-http
+      path: /metrics
