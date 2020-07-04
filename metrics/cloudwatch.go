@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
+	"github.com/patrickmn/go-cache"
 	"regexp"
 	"strings"
 	"time"
@@ -17,14 +18,18 @@ type Metric struct {
 }
 
 type CloudwatchMetrics struct {
-	cloudWatch *cloudwatch.CloudWatch
-	namespace  string
+	cloudWatch     *cloudwatch.CloudWatch
+	namespace      string
+	allowedMetrics []string
+	cache          *cache.Cache
 }
 
-func New(cw *cloudwatch.CloudWatch, namespace string) *CloudwatchMetrics {
+func New(cw *cloudwatch.CloudWatch, namespace string, filteredMetrics []string) *CloudwatchMetrics {
 	return &CloudwatchMetrics{
-		cloudWatch: cw,
-		namespace:  namespace,
+		cloudWatch:     cw,
+		namespace:      namespace,
+		allowedMetrics: filteredMetrics,
+		cache:          cache.New(60*time.Minute, 120*time.Minute),
 	}
 }
 
@@ -116,6 +121,12 @@ func (f *CloudwatchMetrics) queryMetrics(ctx context.Context, am []DimensionWith
 }
 
 func (f *CloudwatchMetrics) ListAvailableMetrics(ctx context.Context) ([]DimensionWithMetric, error) {
+	const cacheKey = "ListAvailableMetrics"
+	cached, present := f.cache.Get(cacheKey)
+	if present {
+		return cached.([]DimensionWithMetric), nil
+	}
+
 	dwm := make([]DimensionWithMetric, 0)
 
 	err := f.cloudWatch.ListMetricsPagesWithContext(ctx, &cloudwatch.ListMetricsInput{
@@ -123,6 +134,10 @@ func (f *CloudwatchMetrics) ListAvailableMetrics(ctx context.Context) ([]Dimensi
 	}, func(output *cloudwatch.ListMetricsOutput, b bool) bool {
 		for _, metric := range output.Metrics {
 			for _, dim := range metric.Dimensions {
+				if !f.isMetricAllowed(*metric.MetricName) {
+					continue
+				}
+
 				dwm = append(dwm, DimensionWithMetric{
 					DimensionName:  *dim.Name,
 					DimensionValue: *dim.Value,
@@ -133,8 +148,24 @@ func (f *CloudwatchMetrics) ListAvailableMetrics(ctx context.Context) ([]Dimensi
 		}
 		return true
 	})
+
+	f.cache.Set(cacheKey, dwm, 1*time.Hour)
 	return dwm, err
 
+}
+
+func (f *CloudwatchMetrics) isMetricAllowed(name string) bool {
+	if len(f.allowedMetrics) == 0 {
+		return true
+	}
+
+	for _, allowed := range f.allowedMetrics {
+		if allowed == name {
+			return true
+		}
+	}
+
+	return false
 }
 
 func chunk(rows []*cloudwatch.MetricDataQuery, chunkSize int) [][]*cloudwatch.MetricDataQuery {

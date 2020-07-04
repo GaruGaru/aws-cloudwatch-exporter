@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -20,6 +21,7 @@ func main() {
 	port := flag.Int("port", 9999, "web server port")
 	metricsPath := flag.String("path", "/metrics", "exporter metrics path")
 	refreshRate := flag.Int("refresh", 2*60, "refresh delay in seconds")
+	allowedMetricsFlag :=	flag.String("allow-metric", "", "list of metric to select (eg: messages,queue-size...)")
 	cloudwatchNamespace := flag.String("cloudwatch-namespace", "", "cloudwatch metric namespaces (eg AWS/Firehose)")
 
 	flag.Parse()
@@ -28,13 +30,15 @@ func main() {
 		panic("no cloudwatch-namespace set")
 	}
 
+	allowedMetrics := strings.Split(*allowedMetricsFlag, ",")
+
 	log.SetFormatter(&log.TextFormatter{FullTimestamp: true})
 	registry := prometheus.NewRegistry()
 
 	sess := session.Must(session.NewSessionWithOptions(session.Options{SharedConfigState: session.SharedConfigEnable}))
 
 	svc := cloudwatch.New(sess)
-	cwExporter := exporter.NewCloudwatch(metrics.New(svc, *cloudwatchNamespace), registry)
+	cwExporter := exporter.NewCloudwatch(metrics.New(svc, *cloudwatchNamespace, allowedMetrics), registry)
 
 	if err := cwExporter.Init(); err != nil {
 		panic(err)
