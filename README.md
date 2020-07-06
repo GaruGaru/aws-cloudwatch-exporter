@@ -1,4 +1,4 @@
-# sqs-exporter
+# aws-cloudwatch-exporter
 [![Go Report Card](https://goreportcard.com/badge/github.com/GaruGaru/aws-sqs-exporter)](https://goreportcard.com/report/github.com/GaruGaru/aws-sqs-exporter)
 [![MicroBadger Size](https://img.shields.io/microbadger/image-size/garugaru/sqs-exporter)](https://cloud.docker.com/u/garugaru/repository/docker/garugaru/sqs-exporter)
  
