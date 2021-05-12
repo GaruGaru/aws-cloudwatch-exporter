@@ -5,30 +5,35 @@ import (
 	"context"
 	"fmt"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 	"regexp"
 	"strings"
 )
 
 type Cloudwatch struct {
-	metricsMap      map[string]*prometheus.GaugeVec
-	fireHoseMetrics *metrics.CloudwatchMetrics
-	registry        *prometheus.Registry
+	metricsMap        map[string]*prometheus.GaugeVec
+	cloudwatchMetrics *metrics.CloudwatchMetrics
+	registry          *prometheus.Registry
+	prefix            string
 }
 
-func NewCloudwatch(firehoseMetrics *metrics.CloudwatchMetrics, registry *prometheus.Registry) *Cloudwatch {
+func NewCloudwatch(prefix string, cloudwatchMetrics *metrics.CloudwatchMetrics, registry *prometheus.Registry) *Cloudwatch {
 	return &Cloudwatch{
-		fireHoseMetrics: firehoseMetrics,
-		metricsMap:      make(map[string]*prometheus.GaugeVec),
-		registry:        registry,
+		cloudwatchMetrics: cloudwatchMetrics,
+		metricsMap:        make(map[string]*prometheus.GaugeVec),
+		registry:          registry,
+		prefix:            prefix,
 	}
 }
 
 func (c *Cloudwatch) Init() error {
 	ctx := context.Background()
-	cwMetrics, err := c.fireHoseMetrics.ListAvailableMetrics(ctx)
+	cwMetrics, err := c.cloudwatchMetrics.ListAvailableMetrics(ctx)
 	if err != nil {
 		return err
 	}
+
+	logrus.Infof("discovered %d metrics", len(cwMetrics))
 
 	names := make(map[string]bool)
 	for _, m := range cwMetrics {
@@ -38,7 +43,6 @@ func (c *Cloudwatch) Init() error {
 	for k := range names {
 		k = normalize(k)
 		c.metricsMap[k] = c.createGaugeForMetric(k)
-
 	}
 
 	return nil
@@ -46,7 +50,7 @@ func (c *Cloudwatch) Init() error {
 
 func (c *Cloudwatch) createGaugeForMetric(k string) *prometheus.GaugeVec {
 	gauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: k,
+		Name: fmt.Sprintf("%s%s", c.prefix, k),
 		Help: fmt.Sprintf("%s cloudwatch average value", k),
 	}, []string{"resource"})
 
@@ -55,7 +59,7 @@ func (c *Cloudwatch) createGaugeForMetric(k string) *prometheus.GaugeVec {
 }
 
 func (c *Cloudwatch) Refresh(ctx context.Context) error {
-	metricsList, err := c.fireHoseMetrics.Metrics(ctx)
+	metricsList, err := c.cloudwatchMetrics.Metrics(ctx)
 	if err != nil {
 		return err
 	}
