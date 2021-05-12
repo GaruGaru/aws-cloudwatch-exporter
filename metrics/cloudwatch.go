@@ -6,7 +6,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 	"github.com/patrickmn/go-cache"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -41,8 +40,6 @@ func (f *CloudwatchMetrics) Metrics(ctx context.Context) ([]Metric, error) {
 
 	return f.queryMetrics(ctx, am)
 }
-
-var removeSpecialChar = regexp.MustCompile(`[^A-Za-z0-9]`)
 
 func createMetricsDataRequest(metrics []DimensionWithMetric, period int64, stat string) []*cloudwatch.MetricDataQuery {
 	requests := make([]*cloudwatch.MetricDataQuery, len(metrics))
@@ -178,7 +175,7 @@ func chunk(rows []*cloudwatch.MetricDataQuery, chunkSize int) [][]*cloudwatch.Me
 	}
 
 	if len(rows) > 0 {
-		chunks = append(chunks, rows[:len(rows)])
+		chunks = append(chunks, rows[:])
 	}
 
 	return chunks

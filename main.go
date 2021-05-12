@@ -21,7 +21,7 @@ func main() {
 	port := flag.Int("port", 9999, "web server port")
 	metricsPath := flag.String("path", "/metrics", "exporter metrics path")
 	refreshRate := flag.Int("refresh", 2*60, "refresh delay in seconds")
-	allowedMetricsFlag :=	flag.String("allow-metric", "", "list of metric to select (eg: messages,queue-size...)")
+	allowedMetricsFlag := flag.String("allow-metric", "", "list of metric to select (eg: messages,queue-size...)")
 	cloudwatchNamespace := flag.String("cloudwatch-namespace", "", "cloudwatch metric namespaces (eg AWS/Firehose)")
 
 	flag.Parse()
@@ -30,7 +30,10 @@ func main() {
 		panic("no cloudwatch-namespace set")
 	}
 
-	allowedMetrics := strings.Split(*allowedMetricsFlag, ",")
+	var allowedMetrics []string
+	if *allowedMetricsFlag != "" {
+		allowedMetrics = strings.Split(*allowedMetricsFlag, ",")
+	}
 
 	log.SetFormatter(&log.TextFormatter{FullTimestamp: true})
 	registry := prometheus.NewRegistry()
