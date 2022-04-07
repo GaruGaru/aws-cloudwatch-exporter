@@ -21,6 +21,7 @@ func main() {
 	port := flag.Int("port", 9999, "web server port")
 	metricsPath := flag.String("path", "/metrics", "exporter metrics path")
 	refreshRate := flag.Int("refresh", 2*60, "refresh delay in seconds")
+	metricsListRefresh := flag.Duration("metrics-list-refresh", time.Hour*1, "refresh delay for metrics list in seconds")
 	allowedMetricsFlag := flag.String("allow-metric", "", "list of metric to select (eg: messages,queue-size...)")
 	cloudwatchNamespace := flag.String("cloudwatch-namespace", "", "cloudwatch metric namespaces (eg AWS/Firehose)")
 	metricsPrefix := flag.String("prefix", "", "metrics prefix")
@@ -42,7 +43,7 @@ func main() {
 	sess := session.Must(session.NewSessionWithOptions(session.Options{SharedConfigState: session.SharedConfigEnable}))
 
 	svc := cloudwatch.New(sess)
-	cwExporter := exporter.NewCloudwatch(*metricsPrefix, metrics.New(svc, *cloudwatchNamespace, allowedMetrics), registry)
+	cwExporter := exporter.NewCloudwatch(*metricsPrefix, metrics.New(svc, *cloudwatchNamespace, allowedMetrics), *metricsListRefresh, registry)
 
 	if err := cwExporter.Init(); err != nil {
 		panic(err)
